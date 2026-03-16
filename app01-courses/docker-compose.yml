@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17.6-alpine
+    container_name: courses-db
+    environment:
+      - POSTGRES_DB=coursesdb
+    env_file:
+      - .env.postgres
+    volumes:
+      - dbdata:/var/lib/postgresql/dbdata
+    networks:
+      - course-net
+    ports:
+      - 5433:5432
+
+  backend:
+    build: 
+      context: ./backend-api
+      dockerfile: Dockerfile
+    container_name: course-api
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    env_file:
+      - .env.postgres
+    networks:
+      - course-net
+    ports:
+      - 8080:8080
+    depends_on:
+      - db
+
+networks:
+  course-net:
+  
+volumes:
+  dbdata:

@@ -1,0 +1,137 @@
+package com.jdc.courses.model.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.function.Function;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jdc.courses.api.input.ClassForm;
+import com.jdc.courses.api.input.ClassSearch;
+import com.jdc.courses.api.output.ClassDetails;
+import com.jdc.courses.api.output.ClassListItem;
+import com.jdc.courses.api.output.ModificationResult;
+import com.jdc.courses.api.output.PageResult;
+import com.jdc.courses.api.output.Schedule;
+import com.jdc.courses.exception.BusinessException;
+import com.jdc.courses.model.entity.Classes;
+import com.jdc.courses.model.entity.Classes_;
+import com.jdc.courses.model.repo.ClassesRepo;
+import com.jdc.courses.model.repo.CourseRepo;
+
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+
+@Service
+@Transactional(readOnly = true)
+public class ClassService {
+	
+	@Autowired
+	private ClassesRepo classesRepo;
+	@Autowired
+	private CourseRepo courseRepo;
+	@Autowired
+	private ObjectMapper objectMapper;
+
+	public PageResult<ClassListItem> search(ClassSearch search, int page, int size) {
+		
+		Function<CriteriaBuilder, CriteriaQuery<ClassListItem>> queryFun = cb -> {
+			var cq = cb.createQuery(ClassListItem.class);
+			var root = cq.from(Classes.class);
+			
+			ClassListItem.select(cq, root);
+			cq.where(search.where(cb, root));
+			
+			return cq;
+		};
+		
+		Function<CriteriaBuilder, CriteriaQuery<Long>> countFun = cb -> {
+			var cq = cb.createQuery(Long.class);
+			var root = cq.from(Classes.class);
+			
+			cq.select(cb.count(root.get(Classes_.id)));
+			cq.where(search.where(cb, root));
+			
+			return cq;
+		};
+		
+		
+		return classesRepo.search(queryFun, countFun, page, size);
+	}
+
+	public ClassDetails findById(int id) {
+		
+		return classesRepo.findById(id)
+				.map(a -> ClassDetails.from(a, this::convert))
+				.orElseThrow(() -> new BusinessException("There is no class with id %s".formatted(id)));
+	}
+
+	@Transactional
+	public ModificationResult<Integer> create(ClassForm form) {
+		
+		try {
+			// Find Course
+			var course = courseRepo.findById(form.courseId())
+					.orElseThrow(() -> new BusinessException("There is no course with id %s".formatted(form.courseId())));
+			
+			// Convert Schedule List to JSON String
+			var schedules = objectMapper.writeValueAsString(form.schedules());
+
+			// Create Class Entity
+			var entity = form.entity();
+			
+			entity.setCourse(course);
+			entity.setSchedules(schedules);
+			
+			entity = classesRepo.save(entity);
+			
+			return new ModificationResult<>(entity.getId());
+
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	@Transactional
+	public ModificationResult<Integer> update(int id, ClassForm form) {
+		
+		try {
+			var entity = classesRepo.findById(id)
+					.orElseThrow(() -> new BusinessException("There is no class with id %s".formatted(id)));
+			// Find Course
+			var course = courseRepo.findById(form.courseId())
+					.orElseThrow(() -> new BusinessException("There is no course with id %s".formatted(form.courseId())));
+			entity.setCourse(course);
+			
+			// Convert Schedule List to JSON String
+			var schedules = objectMapper.writeValueAsString(form.schedules());
+			entity.setSchedules(schedules);
+			
+			entity.setStartDate(form.startDate());
+			entity.setType(form.classType());
+			entity.setMonths(form.months());
+			entity.setRemark(form.remark());
+			
+			entity.setUpdatedAt(LocalDateTime.now());
+		
+			return new ModificationResult<>(entity.getId());
+
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	private List<Schedule> convert(String json) {
+		try {
+			return objectMapper.readValue(json, new TypeReference<List<Schedule>>() {});
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+}
