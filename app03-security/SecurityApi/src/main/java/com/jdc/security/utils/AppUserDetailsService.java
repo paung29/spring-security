@@ -3,6 +3,7 @@ package com.jdc.security.utils;
 
 import java.time.LocalDateTime;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -14,7 +15,8 @@ import com.jdc.security.model.repo.AccountRepo;
 
 @Service
 public class AppUserDetailsService implements UserDetailsService{
-	
+
+	@Autowired
 	private AccountRepo accountRepo;
 
 	@Override

@@ -13,7 +13,7 @@ public record SignUpForm(
 		@NotBlank(message = "Please enter email for login.")
 		String email) {
 
-	public Account entity(PasswordEncoder passwordEncoder) {
+	public Account entity() {
 		var entity = new Account();
 		
 		entity.setName(name);
